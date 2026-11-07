@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+android/app/build
+android/.gradle
+android/build
+
+# Release binaries
+*.apk
+*.aab
+
+# Logs
+*.log
+logcat*.txt
+
+# IDE
+.idea
+.vscode
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test screenshots
+test_*.png

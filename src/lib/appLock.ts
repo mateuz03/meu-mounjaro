@@ -1,6 +1,7 @@
 // Bloqueio de privacidade local (por dispositivo). O PIN nunca sai do aparelho.
 const PIN_HASH_KEY = 'mounjaro_lock_pin_hash';
 const PIN_SALT_KEY = 'mounjaro_lock_pin_salt';
+const PIN_LENGTH_KEY = 'mounjaro_lock_pin_length';
 const TIMEOUT_KEY = 'mounjaro_lock_timeout';
 const UNLOCKED_KEY = 'mounjaro_lock_unlocked';
 const HIDDEN_AT_KEY = 'mounjaro_lock_hidden_at';
@@ -28,7 +29,17 @@ export async function setLockPin(pin: string): Promise<void> {
   const hash = await hashPin(pin, salt);
   localStorage.setItem(PIN_SALT_KEY, salt);
   localStorage.setItem(PIN_HASH_KEY, hash);
+  // Comprimento do PIN (4–6): permite à tela de bloqueio validar apenas quando
+  // o usuário terminar de digitar, sem disparar a checagem no 4º dígito.
+  localStorage.setItem(PIN_LENGTH_KEY, String(pin.length));
   markUnlocked();
+}
+
+// Comprimento do PIN salvo, ou null para PINs criados antes deste campo existir
+// (nesses casos a tela de bloqueio usa confirmação manual).
+export function getLockPinLength(): number | null {
+  const raw = Number(localStorage.getItem(PIN_LENGTH_KEY));
+  return Number.isInteger(raw) && raw >= 4 && raw <= 6 ? raw : null;
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
@@ -40,6 +51,7 @@ export async function verifyPin(pin: string): Promise<boolean> {
 export function removeLock(): void {
   localStorage.removeItem(PIN_HASH_KEY);
   localStorage.removeItem(PIN_SALT_KEY);
+  localStorage.removeItem(PIN_LENGTH_KEY);
   sessionStorage.removeItem(UNLOCKED_KEY);
 }
 

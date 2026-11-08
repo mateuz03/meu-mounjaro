@@ -25,3 +25,10 @@ Thumbs.db
 
 # Test screenshots
 test_*.png
+
+# Root test artifacts (screenshots, dumps, IDE state)
+/*.png
+/*.txt
+/ui.xml
+*.tsbuildinfo
+/s.slice(1

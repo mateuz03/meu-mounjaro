@@ -15,6 +15,7 @@ import {
   IconTrash,
 } from '../components/ui';
 import { LineChart, type ChartPoint } from '../components/LineChart';
+import { Photo } from '../components/Photo';
 import {
   addDays,
   cmToDisplay,
@@ -25,6 +26,7 @@ import {
   kgToDisplay,
   todayISO,
 } from '../lib/helpers';
+import { uploadPhoto, deletePhoto } from '../lib/storage';
 import type { BodyMeasurement } from '../lib/types';
 
 const METRICS = [
@@ -102,7 +104,7 @@ async function compressImage(file: File): Promise<string> {
 }
 
 export function Evolution() {
-  const { data, saveRow, deleteRow, updateProfile, action, setAction, showToast } = useApp();
+  const { data, saveRow, deleteRow, updateProfile, action, setAction, showToast, session } = useApp();
   const profile = data.profile;
   const wUnit = profile?.weight_unit ?? 'kg';
   const lUnit = profile?.length_unit ?? 'cm';
@@ -268,6 +270,16 @@ export function Evolution() {
     if (file.size > 8 * 1024 * 1024) {
       showToast('Foto muito grande. Escolha uma imagem de até 8 MB.', 'error');
       return;
+    }
+    const uid = session?.user?.id;
+    if (uid) {
+      // Novo fluxo: foto vai para o bucket privado do Storage; o banco guarda
+      // apenas o caminho. Se o upload falhar, cai no fluxo legado (base64).
+      const up = await uploadPhoto(uid, `evolution/${form.id ?? Date.now()}`, file);
+      if (up.ok && up.path) {
+        setForm((f) => ({ ...f, photo_url: up.path! }));
+        return;
+      }
     }
     try {
       const dataUrl = await compressImage(file);
@@ -437,7 +449,7 @@ export function Evolution() {
             {beforePhoto && afterPhoto && (
               <div className="photo-compare">
                 <figure className="compare-cell">
-                  <img src={beforePhoto.photo_url!} alt={`Foto de ${formatDateShort(beforePhoto.entry_date)}`} />
+                  <Photo value={beforePhoto.photo_url} alt={`Foto de ${formatDateShort(beforePhoto.entry_date)}`} />
                   <figcaption>
                     <span className="compare-tag">Antes</span>
                     <strong>{formatDateShort(beforePhoto.entry_date)}</strong>
@@ -447,7 +459,7 @@ export function Evolution() {
                   </figcaption>
                 </figure>
                 <figure className="compare-cell">
-                  <img src={afterPhoto.photo_url!} alt={`Foto de ${formatDateShort(afterPhoto.entry_date)}`} />
+                  <Photo value={afterPhoto.photo_url} alt={`Foto de ${formatDateShort(afterPhoto.entry_date)}`} />
                   <figcaption>
                     <span className="compare-tag after">Depois</span>
                     <strong>{formatDateShort(afterPhoto.entry_date)}</strong>
@@ -512,7 +524,7 @@ export function Evolution() {
                   .join(' · ') || 'Sem medidas detalhadas'}
               </span>
               {m.notes && <span className="muted small">{m.notes}</span>}
-              {m.photo_url && <img src={m.photo_url} alt="Foto de evolução" className="evo-photo" />}
+              {m.photo_url && <Photo value={m.photo_url} alt="Foto de evolução" className="evo-photo" />}
             </div>
             <div className="tl-actions">
               <button className="icon-btn" onClick={() => openEdit(m)} aria-label="Editar">
@@ -563,7 +575,7 @@ export function Evolution() {
           <input type="file" accept="image/*" onChange={pickPhoto} />
           {form.photo_url && (
             <div className="photo-preview">
-              <img src={form.photo_url} alt="Prévia" />
+              <Photo value={form.photo_url} alt="Prévia" />
               <button className="icon-btn danger" onClick={() => setForm({ ...form, photo_url: null })} aria-label="Remover foto">
                 <IconTrash size={16} />
               </button>
@@ -598,6 +610,7 @@ export function Evolution() {
         onConfirm={async () => {
           if (pendingDelete) {
             await deleteRow('body_measurements', pendingDelete.id);
+            if (pendingDelete.photo_url) await deletePhoto(pendingDelete.photo_url);
             setPendingDelete(null);
           }
         }}

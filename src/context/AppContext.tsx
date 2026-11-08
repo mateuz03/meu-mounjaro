@@ -12,6 +12,8 @@ import { supabase, auth } from '../lib/supabase';
 import { emptyData, buildDemoData } from '../lib/demo';
 import { saveSnapshot, loadSnapshot, clearSnapshot } from '../lib/offlineCache';
 import { IMPORT_FIELDS, type BackupPayload } from '../lib/backup';
+import { TABLE_SPECS, windowCutoff } from '../lib/tables';
+import { classifyDbError, isNetworkFailure, loadErrorMessage, type DbErrorKind } from '../lib/dbErrors';
 import type {
   AppData,
   Profile,
@@ -66,7 +68,12 @@ interface AppContextValue {
   deleteRow: (table: TableName, id: string) => Promise<{ ok: boolean; error?: string }>;
   restoreBackup: (
     payload: BackupPayload,
-  ) => Promise<{ ok: boolean; imported: number; error?: string }>;
+  ) => Promise<{
+    ok: boolean;
+    imported: number;
+    failed: { field: string; error: string }[];
+    error?: string;
+  }>;
   updateProfile: (values: Partial<Profile>) => Promise<{ ok: boolean; error?: string }>;
   tab: Tab;
   setTab: (t: Tab) => void;
@@ -83,44 +90,6 @@ export function useApp(): AppContextValue {
   if (!ctx) throw new Error('useApp must be used inside AppProvider');
   return ctx;
 }
-
-const TABLES: Exclude<TableName, 'profiles'>[] = [
-  'medication_applications',
-  'body_measurements',
-  'daily_logs',
-  'perceived_effects',
-  'reminders',
-  'appointments',
-  'medication_inventory',
-  'consultation_notes',
-  'gym_workouts',
-  'gym_exercise_entries',
-  'sport_activities',
-  'fitness_routine_items',
-  'fitness_weight_logs',
-  'diet_menu_items',
-  'diet_meal_logs',
-  'diet_shopping_items',
-];
-
-const DATA_FIELD_BY_TABLE: Record<(typeof TABLES)[number], keyof AppData> = {
-  medication_applications: 'applications',
-  body_measurements: 'measurements',
-  daily_logs: 'logs',
-  perceived_effects: 'effects',
-  reminders: 'reminders',
-  appointments: 'appointments',
-  medication_inventory: 'inventory',
-  consultation_notes: 'notes',
-  gym_workouts: 'gym_workouts',
-  gym_exercise_entries: 'gym_exercise_entries',
-  sport_activities: 'sport_activities',
-  fitness_routine_items: 'fitness_routine_items',
-  fitness_weight_logs: 'fitness_weight_logs',
-  diet_menu_items: 'diet_menu_items',
-  diet_meal_logs: 'diet_meal_logs',
-  diet_shopping_items: 'diet_shopping_items',
-};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -150,15 +119,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, 3500);
   }, []);
 
-  const ensureProfile = useCallback(async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return null;
+  const ensureProfile = useCallback(async (): Promise<Profile | null> => {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) return null;
     const uid = userData.user.id;
-    const { data: prof } = await supabase
+    const { data: prof, error: selError } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', uid)
       .maybeSingle();
+    if (selError) {
+      // Log técnico sem dados pessoais (apenas código e mensagem do banco).
+      console.error('[profile] falha ao carregar:', selError.code ?? '', selError.message);
+      return null;
+    }
     if (prof) return prof as Profile;
     const insert = {
       user_id: uid,
@@ -167,13 +141,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         userData.user.email?.split('@')[0] ||
         null,
     };
-    const { data: created } = await supabase
+    const { data: created, error: insError } = await supabase
       .from('profiles')
       .insert(insert)
       .select()
       .single();
+    if (insError) {
+      console.error('[profile] falha ao criar:', insError.code ?? '', insError.message);
+      showToast('Não foi possível carregar seu perfil. Tente atualizar em alguns instantes.', 'error');
+      return null;
+    }
     return (created as Profile) || null;
-  }, []);
+  }, [showToast]);
 
   const reload = useCallback(async () => {
     const { data: s } = await supabase.auth.getSession();
@@ -189,29 +168,74 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (snap) setData(snap);
       return;
     }
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      showToast('Sua sessão expirou. Entre novamente para carregar seus dados.', 'error');
+      return;
+    }
     const profile = await ensureProfile();
     const result: AppData = { ...emptyData, profile };
-    let failed = false;
+    const failures: { table: string; kind: DbErrorKind }[] = [];
     await Promise.all(
-      TABLES.map(async (t) => {
-        const { data: rows, error } = await supabase.from(t).select('*').eq('user_id', userData.user!.id);
+      TABLE_SPECS.map(async (spec) => {
+        let query = supabase
+          .from(spec.table)
+          .select(spec.columns.join(','))
+          .eq('user_id', uid);
+        if (spec.windowMonths) {
+          query = query.gte(spec.dateColumn, windowCutoff(spec.windowMonths));
+        }
+        query = query.order(spec.dateColumn, { ascending: false });
+        const { data: rows, error } = await query;
         if (!error && rows) {
-          (result as unknown as Record<string, unknown>)[DATA_FIELD_BY_TABLE[t]] = rows;
+          (result as unknown as Record<string, unknown>)[spec.field] = rows;
         } else if (error) {
-          failed = true;
+          const kind = classifyDbError(error);
+          failures.push({ table: spec.table, kind });
+          console.error(`[reload] falha em ${spec.table}:`, error.code ?? '', error.message);
         }
       }),
     );
-    if (failed) {
-      setOffline(true);
+
+    if (failures.length === 0) {
+      setOffline(false);
+      setData(result);
+      saveSnapshot(uid, result);
       return;
     }
+
+    // Distingue falha total de parcial e tipo de erro — sem confundir com offline.
+    const kinds = [...new Set(failures.map((f) => f.kind))];
+    const allNetwork = kinds.every(isNetworkFailure);
+
+    if (failures.length === TABLE_SPECS.length && allNetwork) {
+      setOffline(true);
+      const snap = loadSnapshot(uid);
+      if (snap) setData(snap);
+      showToast(loadErrorMessage('network'), 'error');
+      return;
+    }
+
+    if (failures.length === TABLE_SPECS.length) {
+      // Falha total por outro motivo (ex.: esquema/permission): mantém o cache
+      // local legível e informa o motivo real.
+      setOffline(false);
+      const snap = loadSnapshot(uid);
+      if (snap) setData(snap);
+      showToast(loadErrorMessage(kinds[0] ?? 'unknown'), 'error');
+      return;
+    }
+
+    // Falha parcial: mantém o que carregou e avisa quais recursos faltam.
     setOffline(false);
     setData(result);
     saveSnapshot(uid, result);
-  }, [ensureProfile]);
+    const kind = kinds.find((k) => !isNetworkFailure(k)) ?? 'network';
+    showToast(
+      `${loadErrorMessage(kind)} (${failures.length} de ${TABLE_SPECS.length} seções)`,
+      'error',
+    );
+  }, [ensureProfile, showToast]);
 
   useEffect(() => {
     let mounted = true;
@@ -385,22 +409,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const restoreBackup = useCallback(
     async (
       payload: BackupPayload,
-    ): Promise<{ ok: boolean; imported: number; error?: string }> => {
+    ): Promise<{
+      ok: boolean;
+      imported: number;
+      failed: { field: string; error: string }[];
+      error?: string;
+    }> => {
       if (demo) {
         showToast('Modo demonstração: backup não é restaurado em dados fictícios.', 'info');
-        return { ok: false, imported: 0, error: 'demo' };
+        return { ok: false, imported: 0, failed: [] };
       }
       if (!navigator.onLine) {
         showToast('Você está offline. Reconecte-se para restaurar o backup.', 'error');
-        return { ok: false, imported: 0, error: 'offline' };
+        return { ok: false, imported: 0, failed: [], error: 'offline' };
       }
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) {
         showToast('Sessão expirada. Entre novamente.', 'error');
-        return { ok: false, imported: 0, error: 'Sessão expirada.' };
+        return { ok: false, imported: 0, failed: [], error: 'Sessão expirada.' };
       }
       const uid = userData.user.id;
       let imported = 0;
+      const failed: { field: string; error: string }[] = [];
+      // Um erro em uma seção não aborta as demais; o resumo final informa tudo.
       for (const { field, table } of IMPORT_FIELDS) {
         const rows = payload.rows[field];
         if (!rows?.length) continue;
@@ -411,23 +442,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const chunk = fresh.slice(i, i + 200).map((r) => ({ ...r, user_id: uid }));
           const { error } = await supabase.from(table).insert(chunk);
           if (error) {
-            showToast(`Erro ao restaurar "${field}": ${error.message}`, 'error');
-            await reload();
-            return { ok: false, imported, error: error.message };
+            console.error(`[restore] falha em ${table}:`, error.code ?? '', error.message);
+            failed.push({ field, error: error.message });
+            break;
           }
           imported += chunk.length;
         }
       }
+      let profileError: string | null = null;
       if (payload.profile) {
         const p = { ...payload.profile } as Record<string, unknown>;
         delete p.id;
         delete p.user_id;
         delete p.created_at;
         delete p.updated_at;
-        await supabase.from('profiles').update(p).eq('user_id', uid);
+        const { error } = await supabase.from('profiles').update(p).eq('user_id', uid);
+        if (error) {
+          console.error('[restore] falha no perfil:', error.code ?? '', error.message);
+          profileError = error.message;
+          failed.push({ field: 'profile', error: error.message });
+        }
       }
       await reload();
-      return { ok: true, imported };
+      return {
+        ok: failed.length === 0,
+        imported,
+        failed,
+        error: profileError ?? failed[0]?.error,
+      };
     },
     [demo, data, reload, showToast],
   );

@@ -36,7 +36,29 @@ import {
   setLockTimeout,
   type LockTimeout,
 } from '../lib/appLock';
-import { parseBackup, formatDateBR, type BackupPayload } from '../lib/backup';
+import { parseBackup, formatDateBR, BACKUP_VERSION, type BackupPayload } from '../lib/backup';
+import { uploadPhoto } from '../lib/storage';
+import { Photo } from '../components/Photo';
+
+const FIELD_LABELS: Record<string, string> = {
+  applications: 'aplicações',
+  measurements: 'medidas',
+  logs: 'diário',
+  effects: 'efeitos',
+  reminders: 'lembretes',
+  appointments: 'consultas',
+  inventory: 'estoque',
+  notes: 'anotações',
+  gym_workouts: 'treinos',
+  gym_exercise_entries: 'exercícios',
+  sport_activities: 'atividades esportivas',
+  fitness_routine_items: 'rotina',
+  fitness_weight_logs: 'pesos (fitness)',
+  diet_menu_items: 'cardápio',
+  diet_meal_logs: 'refeições',
+  diet_shopping_items: 'lista de compras',
+  profile: 'perfil',
+};
 
 const PRIVACY_POLICY = [
   'Seus dados são armazenados de forma privada em sua conta pessoal e protegidos por autenticação. Nenhum dado seu é público e nenhum outro usuário consegue ver suas informações.',
@@ -108,7 +130,7 @@ export function ProfilePage() {
   };
 
   const exportData = () => {
-    const payload = { exported_at: new Date().toISOString(), ...data };
+    const payload = { exported_at: new Date().toISOString(), version: BACKUP_VERSION, ...data };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -132,23 +154,40 @@ export function ProfilePage() {
   const pickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const size = 160;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const s = Math.min(img.width, img.height);
-        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-        setAvatar(canvas.toDataURL('image/jpeg', 0.8));
-      };
-      img.src = String(reader.result);
-    };
-    reader.readAsDataURL(file);
+    const uid = session?.user?.id;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const s = Math.min(bitmap.width, bitmap.height);
+      const size = 320;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('canvas');
+      ctx.drawImage(bitmap, (bitmap.width - s) / 2, (bitmap.height - s) / 2, s, s, 0, 0, size, size);
+      bitmap.close();
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85),
+      );
+      if (!blob) throw new Error('blob');
+      if (uid) {
+        // Novo fluxo: bucket privado do Storage; o banco guarda só o caminho.
+        const up = await uploadPhoto(uid, 'avatar', blob);
+        if (up.ok && up.path) {
+          setAvatar(up.path);
+          return;
+        }
+      }
+      // Fallback legado (bucket indisponível): data URL.
+      const dataUrl = await new Promise<string>((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.readAsDataURL(blob);
+      });
+      setAvatar(dataUrl);
+    } catch {
+      showToast('Não foi possível processar a imagem.', 'error');
+    }
   };
 
   const email = session?.user.email ?? '';
@@ -210,10 +249,14 @@ export function ProfilePage() {
     setRestoring(true);
     const result = await restoreBackup(restorePayload);
     setRestoring(false);
-    if (result.ok) {
+    const n = result.imported;
+    if (result.failed.length === 0) {
       showToast(
-        `Backup restaurado: ${result.imported} novo${result.imported === 1 ? '' : 's'} registro${result.imported === 1 ? '' : 's'} importado${result.imported === 1 ? '' : 's'}.`,
+        `Backup restaurado: ${n} novo${n === 1 ? '' : 's'} registro${n === 1 ? '' : 's'} importado${n === 1 ? '' : 's'}.`,
       );
+    } else {
+      const where = result.failed.map((f) => FIELD_LABELS[f.field] ?? f.field).join(', ');
+      showToast(`Restauração parcial: ${n} importado(s); falha em: ${where}.`, 'error');
     }
     setRestorePayload(null);
     setRestoreFileName('');
@@ -256,7 +299,7 @@ export function ProfilePage() {
       <SectionTitle>Dados pessoais</SectionTitle>
       <Card>
         <div className="avatar-row">
-          {avatar ? <img src={avatar} alt="Foto do perfil" className="avatar-img" /> : <div className="avatar-placeholder">{(name || '?').charAt(0).toUpperCase()}</div>}
+          {avatar ? <Photo value={avatar} alt="Foto do perfil" className="avatar-img" /> : <div className="avatar-placeholder">{(name || '?').charAt(0).toUpperCase()}</div>}
           <label className="btn btn-ghost">
             Escolher foto (opcional)
             <input type="file" accept="image/*" hidden onChange={pickAvatar} />
@@ -540,7 +583,7 @@ export function ProfilePage() {
         title="Restaurar backup"
         message={
           restorePayload
-            ? `O arquivo "${restoreFileName}"${restorePayload.exportedAt ? ` (gerado em ${formatDateBR(restorePayload.exportedAt)})` : ''} contém ${restorePayload.total} registro(s). Eles serão adicionados à sua conta sem apagar nada — registros já existentes (mesmo conteúdo) são ignorados. Deseja continuar?`
+            ? `O arquivo "${restoreFileName}"${restorePayload.exportedAt ? ` (gerado em ${formatDateBR(restorePayload.exportedAt)})` : ''} contém ${restorePayload.total} registro(s)${restorePayload.skipped ? ` — ${restorePayload.skipped} inválido(s) serão ignorados` : ''}. Eles serão adicionados à sua conta sem apagar nada — registros já existentes (mesmo conteúdo) são ignorados. Deseja continuar?`
             : ''
         }
         confirmLabel={restoring ? 'Restaurando…' : 'Restaurar'}

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 
 // ---------- icons ----------
 type IconProps = { size?: number };
@@ -132,6 +132,71 @@ export function Field({
   );
 }
 
+// ---------- dialog accessibility ----------
+// Comportamento compartilhado por Modal e ConfirmDialog:
+// - Escape fecha (onClose)
+// - foco entra no diálogo ao abrir e fica preso (Tab/Shift+Tab) enquanto aberto
+// - foco retorna ao elemento que abriu o diálogo ao fechar
+// - rolagem do corpo travada enquanto aberto
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function useDialogA11y(
+  open: boolean,
+  onClose: () => void,
+  ref: React.RefObject<HTMLDivElement | null>,
+) {
+  // onClose em ref: evita re-executar o efeito (e "puxar" o foco de volta)
+  // quando o pai re-renderiza com outra instância da callback.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const dlg = ref.current;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && dlg && !dlg.contains(active)) {
+      restoreRef.current = active;
+    }
+    if (dlg) {
+      const first = dlg.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (first ?? dlg).focus();
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !ref.current) return;
+      const items = Array.from(
+        ref.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const current = document.activeElement;
+      if (e.shiftKey && (current === first || !ref.current.contains(current))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (current === last || !ref.current.contains(current))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+      restoreRef.current?.focus?.();
+      restoreRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+}
+
 export function Modal({
   open,
   onClose,
@@ -145,25 +210,23 @@ export function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [open, onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogA11y(open, onClose, dialogRef);
 
   if (!open) return null;
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true">
+      <div
+        ref={dialogRef}
+        className={`modal ${wide ? 'modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
         <div className="modal-head">
-          <h3>{title}</h3>
+          <h3 id={titleId}>{title}</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Fechar">
             <IconX />
           </button>
@@ -189,11 +252,22 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogA11y(open, onCancel, dialogRef);
+
   if (!open) return null;
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal modal-confirm" role="alertdialog" aria-modal="true">
-        <h3>{title}</h3>
+      <div
+        ref={dialogRef}
+        className="modal modal-confirm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <h3 id={titleId}>{title}</h3>
         <p>{message}</p>
         <div className="confirm-actions">
           <Button variant="ghost" onClick={onCancel}>
@@ -240,6 +314,25 @@ export function RatingScale({
   onChange: (v: number) => void;
   labels?: [string, string];
 }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Padrão WAI-ARIA radiogroup: apenas a opção selecionada entra na ordem de
+  // Tab (a primeira quando nada foi escolhido); setas movem e selecionam.
+  const tabStop = value ?? 1;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, n: number) => {
+    let next: number | null = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = Math.min(5, n + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = Math.max(1, n - 1);
+    else if (e.key === 'Home') next = 1;
+    else if (e.key === 'End') next = 5;
+    if (next != null) {
+      e.preventDefault();
+      onChange(next);
+      refs.current[next - 1]?.focus();
+    }
+  };
+
   return (
     <div className="rating-scale">
       <div className="rating-head">
@@ -250,15 +343,21 @@ export function RatingScale({
           </span>
         )}
       </div>
-      <div className="rating-dots" role="radiogroup">
+      <div className="rating-dots" role="radiogroup" aria-label={label}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
+            ref={(el) => {
+              refs.current[n - 1] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={value === n}
+            aria-label={labels ? `${n} (${n <= 3 ? labels[0] : labels[1]})` : String(n)}
+            tabIndex={n === tabStop ? 0 : -1}
             className={`rating-dot ${value != null && n <= value ? 'active' : ''}`}
             onClick={() => onChange(n)}
+            onKeyDown={(e) => handleKeyDown(e, n)}
           >
             {n}
           </button>

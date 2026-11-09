@@ -1366,6 +1366,10 @@ textarea { resize: vertical; }
   white-space: nowrap;
   border: 0;
 }
+/* Diálogo recebe foco como fallback (tabIndex=-1): sem anel visual duplicado */
+.modal:focus {
+  outline: none;
+}
 .lock-forgot {
   margin-top: 22px;
   border: none;

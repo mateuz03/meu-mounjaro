@@ -4,6 +4,7 @@ import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, Tag } from '../c
 import { IconPlus, IconEdit, IconTrash, IconApple, IconRepeat } from '../components/ui';
 import { SLOT_ORDER, SLOT_LABELS } from '../lib/helpers';
 import type { DietMenuItem, DietMealLog, MealSlot } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 const WEEKDAYS = [
   { id: 0, label: 'Domingo', short: 'Dom' },
@@ -69,7 +70,7 @@ export function Menu() {
     setFormOpen(true);
   }
 
-  async function submitItem() {
+  const [submitItem, savingItem] = useSubmit(async () => {
     const name = form.name.trim();
     if (!name) return setFormError('Informe o nome da refeição (ex.: "Frango com arroz").');
     const cal = form.calories ? Number(form.calories.replace(',', '.')) : null;
@@ -86,7 +87,7 @@ export function Menu() {
       sort_order: form.id ? undefined : siblings.length,
     });
     if (res.ok) setFormOpen(false);
-  }
+  });
 
   async function cloneDay() {
     if (cloneOpen == null) return;
@@ -254,7 +255,9 @@ export function Menu() {
         {formError && <p className="field-error">{formError}</p>}
         <div className="modal-actions">
           <Button variant="secondary" onClick={() => setFormOpen(false)}>Cancelar</Button>
-          <Button onClick={submitItem}>Salvar</Button>
+          <Button onClick={submitItem} disabled={savingItem}>
+            {savingItem ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
 

@@ -4,6 +4,7 @@ import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, RatingScale, Tag
 import { IconDumbbell, IconActivity, IconPlus, IconEdit, IconTrash, IconClock } from '../components/ui';
 import { addDays, todayISO, formatDateLong, fmtNum } from '../lib/helpers';
 import type { GymExerciseEntry, GymWorkout, SportActivity } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 interface ExerciseRow {
   name: string;
@@ -182,7 +183,7 @@ export function Training() {
     setSportOpen(true);
   }
 
-  async function submitSport() {
+  const [submitSport, savingSport] = useSubmit(async () => {
     if (!sportDate) return setSportError('Informe a data.');
     const dur = sportDuration ? Number(sportDuration) : null;
     if (sportDuration && (Number.isNaN(dur) || (dur ?? 0) <= 0))
@@ -200,7 +201,7 @@ export function Training() {
       notes: sportNotes || null,
     });
     if (res.ok) setSportOpen(false);
-  }
+  });
 
   return (
     <div>
@@ -464,7 +465,9 @@ export function Training() {
           <Button variant="secondary" onClick={() => setSportOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={submitSport}>Salvar</Button>
+          <Button onClick={submitSport} disabled={savingSport}>
+            {savingSport ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
 

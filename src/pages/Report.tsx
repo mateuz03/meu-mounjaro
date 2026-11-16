@@ -24,6 +24,7 @@ import {
   todayISO,
 } from '../lib/helpers';
 import type { ConsultationNote } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 export function Report() {
   const { data, saveRow, deleteRow, session, showToast } = useApp();
@@ -106,18 +107,22 @@ export function Report() {
     [data.notes, start, end],
   );
 
-  const addNote = async () => {
+  const [noteError, setNoteError] = useState('');
+
+  const [addNote, savingNote] = useSubmit(async () => {
     if (!noteText.trim()) {
-      showToast('Escreva a pergunta ou observação antes de salvar.', 'error');
+      setNoteError('Escreva a pergunta ou observação antes de salvar.');
       return;
     }
+    setNoteError('');
     const res = await saveRow<ConsultationNote>('consultation_notes', {
       note_date: todayISO(),
       category: noteCat,
       content: noteText.trim(),
     });
     if (res.ok) setNoteText('');
-  };
+    else setNoteError('Não foi possível salvar. Verifique sua conexão e tente novamente.');
+  });
 
   const measureRow = (label: string, key: keyof typeof firstM & string, unit: 'kg' | 'lb' | 'cm' | 'in' | '%') => {
     const f = (firstM as unknown as Record<string, number | null>)?.[key];
@@ -391,8 +396,13 @@ export function Report() {
           <Field label="Nova anotação">
             <textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Ex.: perguntar sobre…" />
           </Field>
-          <Button variant="secondary" onClick={addNote}>
-            <IconPlus size={16} /> Adicionar anotação
+          {noteError && <p className="field-error">{noteError}</p>}
+          <Button variant="secondary" onClick={addNote} disabled={savingNote}>
+            {savingNote ? 'Salvando…' : (
+              <>
+                <IconPlus size={16} /> Adicionar anotação
+              </>
+            )}
           </Button>
         </div>
         {notes.length > 0 && (

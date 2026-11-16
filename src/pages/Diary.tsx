@@ -26,6 +26,7 @@ import {
   weekdayShort,
 } from '../lib/helpers';
 import type { DailyLog, PerceivedEffect } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 interface LogForm {
   id?: string;
@@ -181,7 +182,7 @@ export function Diary() {
     setEffectOpen(true);
   };
 
-  const submitEffect = async () => {
+  const [submitEffect, savingEffect] = useSubmit(async () => {
     if (!effectForm.name.trim()) {
       setEffectError('Descreva o efeito percebido.');
       return;
@@ -201,7 +202,7 @@ export function Diary() {
       notes: effectForm.notes || null,
     });
     if (res.ok) setEffectOpen(false);
-  };
+  });
 
   return (
     <div className="page">
@@ -445,7 +446,9 @@ export function Diary() {
         {effectError && <p className="form-error">{effectError}</p>}
         <div className="modal-actions">
           <Button variant="ghost" onClick={() => setEffectOpen(false)}>Cancelar</Button>
-          <Button onClick={submitEffect}>Salvar efeito</Button>
+          <Button onClick={submitEffect} disabled={savingEffect}>
+            {savingEffect ? 'Salvando…' : 'Salvar efeito'}
+          </Button>
         </div>
       </Modal>
 

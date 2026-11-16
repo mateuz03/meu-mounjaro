@@ -4,6 +4,7 @@ import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, Disclaimer, Tag 
 import { IconApple, IconListChecks, IconCheck, IconPlus, IconTrash } from '../components/ui';
 import { parseISO, toISO, addDays, todayISO, formatDateLong, SLOT_ORDER, SLOT_LABELS } from '../lib/helpers';
 import type { DietMenuItem, DietMealLog, MealSlot } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 const WEEKDAY_SHORT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -95,7 +96,7 @@ export function Meals() {
     });
   }
 
-  async function submitExtra() {
+  const [submitExtra, savingExtra] = useSubmit(async () => {
     const name = extraName.trim();
     if (!name) return setExtraError('Informe o que você comeu.');
     const cal = extraCalories ? Number(extraCalories.replace(',', '.')) : null;
@@ -114,7 +115,7 @@ export function Meals() {
       setExtraCalories('');
       setExtraError('');
     }
-  }
+  });
 
   function shiftDate(n: number) {
     setViewDate(addDays(viewDate, n));
@@ -257,7 +258,9 @@ export function Meals() {
             {extraError && <p className="field-error">{extraError}</p>}
             <div className="modal-actions">
               <Button variant="secondary" onClick={() => setExtraOpen(null)}>Cancelar</Button>
-              <Button onClick={submitExtra}>Salvar</Button>
+              <Button onClick={submitExtra} disabled={savingExtra}>
+                {savingExtra ? 'Salvando…' : 'Salvar'}
+              </Button>
             </div>
           </>
         )}

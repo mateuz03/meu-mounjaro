@@ -29,6 +29,7 @@ import {
   daysUntil,
 } from '../lib/helpers';
 import type { MedicationApplication, Appointment, Reminder } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 interface FormState {
   id?: string;
@@ -263,7 +264,7 @@ export function Applications() {
     }
   };
 
-  const submitReminder = async () => {
+  const [submitReminder, savingReminder] = useSubmit(async () => {
     if (!reminder.remind_date) {
       setReminderError('Escolha a data.');
       return;
@@ -329,7 +330,7 @@ export function Applications() {
       showToast(`${total} lembretes criados — um ${repeat === 'monthly' ? 'por mês' : repeat === 'biweekly' ? 'a cada 2 semanas' : 'por semana'} até ${formatDateLong(dates[dates.length - 1])}.`);
       setReminderOpen(false);
     }
-  };
+  });
 
   const openNewReminder = () => {
     setReminder(emptyReminderState());
@@ -849,7 +850,9 @@ export function Applications() {
 
         <div className="modal-actions">
           <Button variant="ghost" onClick={() => setReminderOpen(false)}>Cancelar</Button>
-          <Button onClick={submitReminder}>Salvar</Button>
+          <Button onClick={submitReminder} disabled={savingReminder}>
+            {savingReminder ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
 

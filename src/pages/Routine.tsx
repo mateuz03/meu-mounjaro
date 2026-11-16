@@ -4,6 +4,7 @@ import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, Tag } from '../c
 import { IconPlus, IconEdit, IconTrash, IconRepeat, IconCheck, IconDumbbell, IconActivity } from '../components/ui';
 import { todayISO, formatDateLong, fmtNum } from '../lib/helpers';
 import type { FitnessRoutineItem, GymExerciseEntry, GymWorkout } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 const WEEKDAYS = [
   { id: 0, label: 'Domingo', short: 'Dom' },
@@ -87,7 +88,7 @@ export function Routine() {
     setFormOpen(true);
   }
 
-  async function submitItem() {
+  const [submitItem, savingItem] = useSubmit(async () => {
     const title = form.title.trim();
     if (!title) return setFormError('Dê um título ao item (ex.: "Treino A" ou "Futebol").');
     if (form.kind === 'academia' && !form.exerciseName.trim())
@@ -105,7 +106,7 @@ export function Routine() {
       sort_order: form.id ? undefined : (byDay.get(form.weekday)?.length ?? 0),
     });
     if (res.ok) setFormOpen(false);
-  }
+  });
 
   async function move(it: FitnessRoutineItem, dir: -1 | 1) {
     const siblings = byDay.get(it.weekday) || [];
@@ -305,7 +306,9 @@ export function Routine() {
           <Button variant="secondary" onClick={() => setFormOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={submitItem}>Salvar</Button>
+          <Button onClick={submitItem} disabled={savingItem}>
+            {savingItem ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
 

@@ -16,6 +16,7 @@ import {
 } from '../components/ui';
 import { fmtNum, formatDateShort, todayISO } from '../lib/helpers';
 import type { MedicationInventory } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 interface FormState {
   id?: string;
@@ -66,7 +67,7 @@ export function Inventory() {
     setFormOpen(true);
   };
 
-  const submit = async () => {
+  const [submit, saving] = useSubmit(async () => {
     const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
     const purchased = num(form.quantity_purchased);
     const available = num(form.quantity_available);
@@ -90,7 +91,7 @@ export function Inventory() {
       notes: form.notes || null,
     });
     if (res.ok) setFormOpen(false);
-  };
+  });
 
   const usageCount = (invId: string) =>
     data.applications.filter((a) => a.inventory_id === invId).length;
@@ -203,7 +204,9 @@ export function Inventory() {
         {formError && <p className="form-error">{formError}</p>}
         <div className="modal-actions">
           <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
-          <Button onClick={submit}>Salvar</Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
 

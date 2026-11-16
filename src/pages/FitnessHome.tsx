@@ -5,6 +5,7 @@ import { IconDumbbell, IconActivity, IconScale, IconDownload, IconPlus, IconRepe
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { addDays, todayISO, greeting, firstName, formatDateLong, fmtNum, displayToKg, kgToDisplay } from '../lib/helpers';
 import type { BodyMeasurement } from '../lib/types';
+import { useSubmit } from '../lib/useSubmit';
 
 const PERIODS = [
   { id: '30', label: '30 dias', days: 30 },
@@ -75,22 +76,26 @@ export function FitnessHome() {
     data.measurements.some((m) => m.weight_kg != null) ||
     data.fitness_routine_items.length > 0;
 
-  async function submitWeight() {
+  const [submitWeight, savingWeight] = useSubmit(async () => {
     const kg = Number(wWeight.replace(',', '.'));
     if (!wDate) return setWError('Informe a data.');
     if (!wWeight || Number.isNaN(kg) || kg <= 0) return setWError('Informe um peso válido.');
     setWError('');
-    const ok = await saveRow<BodyMeasurement>('body_measurements', {
+    const res = await saveRow<BodyMeasurement>('body_measurements', {
       entry_date: wDate,
       weight_kg: displayToKg(kg, unit) ?? kg,
       notes: wNotes || null,
     });
-    if (ok) {
+    // Só fecha e limpa quando salvou de verdade — em falha o que foi digitado
+    // continua no formulário para o usuário tentar de novo.
+    if (res.ok) {
       setWeightOpen(false);
       setWWeight('');
       setWNotes('');
+    } else {
+      setWError('Não foi possível salvar. Verifique sua conexão e tente novamente.');
     }
-  }
+  });
 
   async function handlePdf() {
     if (pdfBusy) return;
@@ -277,7 +282,9 @@ export function FitnessHome() {
           <Button variant="secondary" onClick={() => setWeightOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={submitWeight}>Salvar</Button>
+          <Button onClick={submitWeight} disabled={savingWeight}>
+            {savingWeight ? 'Salvando…' : 'Salvar'}
+          </Button>
         </div>
       </Modal>
     </div>

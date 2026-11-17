@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, Tag } from '../components/ui';
+import { Card, Button, Field, Modal, ConfirmDialog, EmptyState, Tag, AreaIntro } from '../components/ui';
 import { IconPlus, IconEdit, IconTrash, IconApple, IconRepeat } from '../components/ui';
 import { SLOT_ORDER, SLOT_LABELS } from '../lib/helpers';
 import type { DietMenuItem, DietMealLog, MealSlot } from '../lib/types';
@@ -26,7 +26,7 @@ interface ItemForm {
 }
 
 export function Menu() {
-  const { data, saveRow, saveRows, deleteRow, showToast } = useApp();
+  const { data, saveRow, saveRows, deleteRow, showToast, setTab } = useApp();
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ItemForm>({ id: undefined, weekday: 1, mealSlot: 'cafe_manha', name: '', description: '', calories: '' });
@@ -127,6 +127,25 @@ export function Menu() {
         Planeje o que você pretende comer em cada dia. As calorias que você informa por item alimentam a
         aba Evolução quando você confirma que comeu a refeição.
       </p>
+
+      <AreaIntro
+        storageKey="mm-intro-dieta"
+        icon={<IconApple size={18} />}
+        title="Como funciona a área Dieta"
+        actions={
+          <>
+            <Button variant="soft" onClick={() => setTab('refeicoes')}>Ver Refeições</Button>
+            <Button variant="soft" onClick={() => setTab('compras')}>Ver lista de Compras</Button>
+          </>
+        }
+      >
+        <ul>
+          <li><strong>Menu</strong> — monte o cardápio da semana, dia a dia e refeição por refeição.</li>
+          <li><strong>Refeições</strong> — dê o "ok" no que você comeu; é isso que gera as calorias do dia.</li>
+          <li><strong>Evolução</strong> — veja as calorias consumidas por dia e por refeição.</li>
+          <li><strong>Compras</strong> — a lista do que você precisa comprar, a partir do seu menu.</li>
+        </ul>
+      </AreaIntro>
 
       {items.length === 0 && (
         <Card>

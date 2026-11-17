@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card, Button, Field, Modal, EmptyState, Disclaimer, SectionTitle } from '../components/ui';
+import { Card, Button, Field, Modal, EmptyState, Disclaimer, SectionTitle, AreaIntro } from '../components/ui';
 import { IconDumbbell, IconActivity, IconScale, IconDownload, IconPlus, IconRepeat } from '../components/ui';
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { addDays, todayISO, greeting, firstName, formatDateLong, fmtNum, displayToKg, kgToDisplay } from '../lib/helpers';
@@ -114,6 +114,18 @@ export function FitnessHome() {
     <div>
       <h1>{greeting()}, {firstName(data.profile?.full_name, session?.user?.email ?? null)}</h1>
       <p className="muted mt-small">Seu espaço para treinos, atividades e evolução física.</p>
+
+      <AreaIntro
+        storageKey="mm-intro-fitness"
+        icon={<IconDumbbell size={18} />}
+        title="Como usar esta área"
+      >
+        <ul>
+          <li><strong>Treinos</strong> — registre sessões de academia e atividades esportivas.</li>
+          <li><strong>Rotina</strong> — monte seu plano semanal de treinos.</li>
+          <li><strong>Peso</strong> — o peso é compartilhado com a área Mounjaro; registre uma vez.</li>
+        </ul>
+      </AreaIntro>
 
       {!hasAnyFitness && (
         <Card>

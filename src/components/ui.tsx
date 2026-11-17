@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 // ---------- icons ----------
 type IconProps = { size?: number };
@@ -300,6 +300,60 @@ export function EmptyState({
       <p>{message}</p>
       {action}
     </div>
+  );
+}
+
+/**
+ * Introdução curta e dispensável de uma área (Mounjaro, Fitness, Dieta).
+ * Some quando o usuário fecha e permanece oculta (por dispositivo) via
+ * localStorage — não volta a interromper quem já conhece o app.
+ */
+export function AreaIntro({
+  storageKey,
+  icon,
+  title,
+  children,
+  actions,
+}: {
+  storageKey: string;
+  icon?: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  if (dismissed) return null;
+
+  return (
+    <Card className="area-intro">
+      <div className="area-intro-head">
+        {icon && <span className="area-intro-icon">{icon}</span>}
+        <strong>{title}</strong>
+        <button
+          className="icon-btn area-intro-close"
+          aria-label="Fechar introdução"
+          onClick={() => {
+            try {
+              localStorage.setItem(storageKey, '1');
+            } catch {
+              /* localStorage indisponível — apenas fecha nesta sessão */
+            }
+            setDismissed(true);
+          }}
+        >
+          <IconX size={16} />
+        </button>
+      </div>
+      <div className="area-intro-body">{children}</div>
+      {actions && <div className="area-intro-actions">{actions}</div>}
+    </Card>
   );
 }
 

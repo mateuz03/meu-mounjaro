@@ -975,6 +975,50 @@ textarea { resize: vertical; }
 .stat-delta.delta-down { color: var(--green); }
 .empty-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .empty-actions .btn { width: 100%; }
+
+/* ---------- area intro (onboarding por área) ---------- */
+.area-intro {
+  background: var(--teal-50);
+  border: 1px solid var(--teal-100);
+  margin-top: 14px;
+}
+.area-intro-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.area-intro-head strong { font-size: 0.95rem; color: var(--navy-900); }
+.area-intro-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--teal-600);
+  flex-shrink: 0;
+}
+.area-intro-close { margin-left: auto; flex-shrink: 0; }
+.area-intro-body {
+  margin-top: 10px;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+.area-intro-body ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.area-intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
 .page-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 
 .exercise-row {

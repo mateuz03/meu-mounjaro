@@ -4,9 +4,9 @@ import {
   Card,
   SectionTitle,
   Button,
-  EmptyState,
   Disclaimer,
   Tag,
+  AreaIntro,
   IconSyringe,
   IconScale,
   IconBook,
@@ -153,6 +153,32 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Introdução curta da área (dispensável) */}
+      <AreaIntro
+        storageKey="mm-intro-mounjaro"
+        icon={<IconSyringe size={18} />}
+        title="Como usar esta área"
+      >
+        <ul>
+          <li><strong>Registrar aplicação</strong> — anote data, dose e local de cada aplicação.</li>
+          <li><strong>Registrar peso</strong> — alimente o gráfico e a variação desde o início.</li>
+          <li><strong>Registro diário</strong> — sono, fome, energia, hidratação e efeitos percebidos.</li>
+        </ul>
+      </AreaIntro>
+
+      {/* Ações mais frequentes logo no topo */}
+      <div className="quick-actions mt">
+        <Button onClick={() => go('aplicacoes', 'new-application')}>
+          <IconPlus size={18} /> Registrar aplicação
+        </Button>
+        <Button variant="secondary" onClick={() => go('evolucao', 'new-weight')}>
+          <IconScale size={18} /> Registrar peso
+        </Button>
+        <Button variant="secondary" onClick={() => go('diario', 'new-log')}>
+          <IconBook size={18} /> Fazer registro diário
+        </Button>
+      </div>
+
       <div className="grid grid-2">
         {/* Próxima aplicação */}
         <Card className="card-accent">
@@ -238,24 +264,11 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Ações */}
-      <div className="quick-actions">
-        <Button onClick={() => go('aplicacoes', 'new-application')}>
-          <IconPlus size={18} /> Registrar aplicação
-        </Button>
-        <Button variant="secondary" onClick={() => go('evolucao', 'new-weight')}>
-          <IconScale size={18} /> Registrar peso
-        </Button>
-        <Button variant="secondary" onClick={() => go('diario', 'new-log')}>
-          <IconBook size={18} /> Fazer registro diário
-        </Button>
-      </div>
-
-      {/* Gráfico */}
-      <SectionTitle>Evolução do peso</SectionTitle>
-      <Card>
-        {chartPoints.length >= 2 ? (
-          <>
+      {/* Gráfico — só aparece quando há dados suficientes */}
+      {chartPoints.length >= 2 && (
+        <>
+          <SectionTitle>Evolução do peso</SectionTitle>
+          <Card>
             <LineChart
               title="Peso"
               points={chartPoints}
@@ -265,43 +278,23 @@ export function Dashboard() {
             <Button variant="ghost" onClick={() => setTab('evolucao')}>
               Ver evolução completa
             </Button>
-          </>
-        ) : (
-          <EmptyState
-            icon={<IconScale />}
-            title={chartPoints.length === 1 ? 'Falta pouco' : 'Sem dados de peso ainda'}
-            message={
-              chartPoints.length === 1
-                ? 'Registre mais um peso para visualizar seu gráfico de evolução.'
-                : 'Registre seu peso em Evolução para acompanhar sua trajetória ao longo do tempo.'
-            }
+          </Card>
+        </>
+      )}
+
+      {/* Como foi sua semana — só quando há registros na semana */}
+      {weekLogs.length > 0 && (
+        <>
+          <SectionTitle
             action={
-              <Button variant="secondary" onClick={() => go('evolucao', 'new-weight')}>
-                <IconPlus size={18} /> Registrar peso
+              <Button variant="ghost" onClick={() => setTab('diario')}>
+                Abrir diário
               </Button>
             }
-          />
-        )}
-      </Card>
-
-      {/* Como foi sua semana */}
-      <SectionTitle
-        action={
-          <Button variant="ghost" onClick={() => setTab('diario')}>
-            Abrir diário
-          </Button>
-        }
-      >
-        Como foi sua semana
-      </SectionTitle>
-      <Card>
-        {weekLogs.length === 0 ? (
-          <p className="muted">
-            Nenhum registro diário nos últimos 7 dias. Um registro por dia leva menos de um minuto
-            e mostra aqui as médias de energia, sono e hidratação da sua semana.
-          </p>
-        ) : (
-          <>
+          >
+            Como foi sua semana
+          </SectionTitle>
+          <Card>
             <div className="day-summary cols-4">
               <div>
                 <span>Energia</span>
@@ -375,42 +368,39 @@ export function Dashboard() {
                 ? 'Diferenças comparadas com a semana anterior (dias −13 a −7). Registre os mesmos itens nas duas semanas para uma comparação completa.'
                 : 'Sem registros na semana anterior para comparar — as diferenças aparecem quando você mantém o registro por duas semanas seguidas.'}
             </p>
-          </>
-        )}
-      </Card>
+          </Card>
+        </>
+      )}
 
-      {/* Efeitos */}
-      <SectionTitle
-        action={
-          <Button variant="ghost" onClick={() => setTab('diario')}>
-            Ver diário
-          </Button>
-        }
-      >
-        Últimos efeitos registrados
-      </SectionTitle>
-      <Card>
-        {recentEffects.length === 0 ? (
-          <p className="muted">
-            Nenhum efeito registrado. No Diário você pode registrar o que perceber — o app não faz
-            avaliações médicas.
-          </p>
-        ) : (
-          <ul className="effect-list">
-            {recentEffects.map((e) => (
-              <li key={e.id}>
-                <Tag tone={e.intensity === 'forte' ? 'warn' : e.intensity === 'leve' ? 'good' : 'neutral'}>
-                  {e.intensity}
-                </Tag>
-                <strong>{e.name}</strong>
-                <span className="muted">
-                  {formatDateLong(e.occurred_on)} · {e.status === 'presente' ? 'Presente' : 'Encerrado'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      {/* Efeitos — só quando há efeitos registrados */}
+      {recentEffects.length > 0 && (
+        <>
+          <SectionTitle
+            action={
+              <Button variant="ghost" onClick={() => setTab('diario')}>
+                Ver diário
+              </Button>
+            }
+          >
+            Últimos efeitos registrados
+          </SectionTitle>
+          <Card>
+            <ul className="effect-list">
+              {recentEffects.map((e) => (
+                <li key={e.id}>
+                  <Tag tone={e.intensity === 'forte' ? 'warn' : e.intensity === 'leve' ? 'good' : 'neutral'}>
+                    {e.intensity}
+                  </Tag>
+                  <strong>{e.name}</strong>
+                  <span className="muted">
+                    {formatDateLong(e.occurred_on)} · {e.status === 'presente' ? 'Presente' : 'Encerrado'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </>
+      )}
 
       <Disclaimer variant="warn">
         {MANDATORY_DISCLAIMER}

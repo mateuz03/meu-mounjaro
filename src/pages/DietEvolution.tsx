@@ -118,7 +118,7 @@ export function DietEvolution() {
               </div>
             </div>
             {points.length > 1 ? (
-              <LineChart points={points} unit="kcal" color="#d97706" />
+              <LineChart title="Calorias consumidas" points={points} unit="kcal" color="#d97706" />
             ) : (
               <p className="muted small">
                 {points.length === 1

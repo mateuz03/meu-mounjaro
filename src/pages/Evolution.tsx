@@ -367,6 +367,7 @@ export function Evolution() {
         </div>
         {dispPoints.length >= 2 ? (
           <LineChart
+            title={metricDef.label}
             points={dispPoints}
             unit={chartUnit}
             color={metric === 'weight_kg' ? '#0d9488' : '#3b82f6'}

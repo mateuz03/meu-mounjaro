@@ -210,7 +210,7 @@ export function FitnessHome() {
               ))}
             </div>
             {chartPoints.length > 1 ? (
-              <LineChart points={chartPoints} unit={unit} color="#65a30d" />
+              <LineChart title="Peso" points={chartPoints} unit={unit} color="#65a30d" />
             ) : (
               <p className="muted small">Registre o peso mais alguns dias para ver o gráfico.</p>
             )}

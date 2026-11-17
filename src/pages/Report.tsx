@@ -239,7 +239,7 @@ export function Report() {
       <SectionTitle>Evolução do peso</SectionTitle>
       <Card>
         {weightPoints.length >= 2 ? (
-          <LineChart points={weightPoints} unit={wUnit} height={160} />
+          <LineChart title="Peso" points={weightPoints} unit={wUnit} height={160} />
         ) : (
           <p className="muted">Registros de peso insuficientes neste período.</p>
         )}

@@ -257,6 +257,7 @@ export function Dashboard() {
         {chartPoints.length >= 2 ? (
           <>
             <LineChart
+              title="Peso"
               points={chartPoints}
               unit={wUnit}
               goal={profile?.goal_weight_kg ? kgToDisplay(profile.goal_weight_kg, wUnit) : null}
@@ -345,8 +346,15 @@ export function Dashboard() {
                   key={d.date}
                   className={`week-dot ${d.logged ? 'logged' : ''}`}
                   title={`${weekdayShort(d.date)}: ${d.logged ? 'registro feito' : 'sem registro'}`}
+                  aria-hidden="true"
                 />
               ))}
+              <span className="sr-only">
+                Registros da semana:{' '}
+                {weekDays
+                  .map((d) => `${weekdayShort(d.date)}: ${d.logged ? 'com registro' : 'sem registro'}`)
+                  .join(', ')}
+              </span>
               <span className="muted small">
                 {weekLogs.length} de 7 dias com registro
               </span>

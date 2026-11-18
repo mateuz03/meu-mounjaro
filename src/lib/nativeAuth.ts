@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { supabase } from './supabase';
+import { supabase, SITE_URL } from './supabase';
 
 export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();
@@ -16,7 +16,9 @@ export async function signInWithGoogleNative(): Promise<{ error?: string }> {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth-callback.html`,
+        // No APK a origem é localhost; o redirect precisa ser a página
+        // pública que faz o deep link de volta ao app.
+        redirectTo: `${SITE_URL}/auth-callback.html`,
         skipBrowserRedirect: true,
       },
     });

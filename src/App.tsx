@@ -5,6 +5,7 @@ import { LockScreen } from './components/LockScreen';
 import { Spinner } from './components/ui';
 import { checkReminders, syncNativeReminders } from './lib/reminderNotifier';
 import { hasLockPin, lockNow, markUnlocked, watchVisibility } from './lib/appLock';
+import { registerNativeAuthBridge } from './lib/nativeAuth';
 import { Landing } from './pages/Landing';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
@@ -66,6 +67,11 @@ function Shell() {
   const { ready, session, demo, data, signOut } = useApp();
   const authed = Boolean(session) || demo;
   const [locked, setLocked] = useState(false);
+
+  // APK: registra deep link OAuth + interceptação do botão Google (Custom Tab).
+  useEffect(() => {
+    registerNativeAuthBridge();
+  }, []);
 
   // Bloqueio de privacidade: exige PIN ao abrir o app (se configurado).
   useEffect(() => {
